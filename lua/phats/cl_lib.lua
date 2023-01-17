@@ -1,3 +1,9 @@
+local IsValid = IsValid
+local ipairs = ipairs
+local Vector = Vector
+local Model = Model
+local table = table
+
 local vector_zero = Vector()
 local angle_zero = Angle()
 
@@ -93,14 +99,20 @@ do
         return self
     end
 
-    function meta:AddSteamID64( sid64 )
-        table.insert( self.SteamIDs, util.SteamIDFrom64( sid64 ) )
-        return self
+    do
+        local util_SteamIDFrom64 = util.SteamIDFrom64
+        function meta:AddSteamID64( sid64 )
+            table.insert( self.SteamIDs, util_SteamIDFrom64( sid64 ) )
+            return self
+        end
     end
 
-    function meta:AddModel( mdl )
-        table.insert( self.Models, string.lower( mdl ) )
-        return self
+    do
+        local string_lower = string.lower
+        function meta:AddModel( mdl )
+            table.insert( self.Models, string_lower( mdl ) )
+            return self
+        end
     end
 
     function meta:AddHasWeapon( class )
@@ -154,25 +166,38 @@ do
         return false
     end
 
-    function meta:CalcPosition( ply )
-        local attachmentID = ply:LookupAttachment( self:GetAttachment() )
-        if (attachmentID > 0) then
-            local data = ply:GetAttachment( attachmentID )
-            if (data) then
-                return LocalToWorld( self:GetPos(), self:GetAngles(), data.Pos, data.Ang )
+    do
+        local LocalToWorld = LocalToWorld
+        function meta:CalcPosition( ply )
+            local attachmentID = ply:LookupAttachment( self:GetAttachment() )
+            if (attachmentID > 0) then
+                local data = ply:GetAttachment( attachmentID )
+                if (data) then
+                    return LocalToWorld( self:GetPos(), self:GetAngles(), data.Pos, data.Ang )
+                end
             end
-        end
 
-        return LocalToWorld( self:GetPos(), self:GetAngles(), ply:EyePos(), ply:EyeAngles() )
+            return LocalToWorld( self:GetPos(), self:GetAngles(), ply:EyePos(), ply:EyeAngles() )
+        end
     end
 
     -- Entity
-    function meta:GetEntity()
-        return self.Entity
-    end
+    do
+        local ents_CreateClientProp = ents.CreateClientProp
+        function meta:GetEntity()
+            local old = self.Entity
+            if IsValid( old ) then
+                return old
+            end
 
-    function meta:SetEntity( ent )
-        self.Entity = ent
+            local new = ents_CreateClientProp( self:GetModel() )
+            if IsValid( new ) then
+                self.Entity = new
+                new:SetNoDraw( true )
+                new:SetupBones()
+                return new
+            end
+        end
     end
 
     -- Remove
@@ -184,28 +209,44 @@ do
     end
 
     -- Think
-    function meta:Think( ent )
-        ent:SetModelScale( self:GetSize(), 0 )
-        ent:SetModel( self:GetModel() )
+    do
+        local player_GetAll = player.GetAll
+        function meta:Think()
+            for __, ply in ipairs( player_GetAll() ) do
+                self.Players[ ply ] = self:CanWear( ply )
+            end
+
+            local ent = self:GetEntity()
+            if IsValid( ent ) then
+                ent:SetModelScale( self:GetSize(), 0 )
+                ent:SetModel( self:GetModel() )
+            end
+        end
     end
 
     -- Draw
-    function meta:Draw( ply, flags )
-        local ent = self:GetEntity()
-        if IsValid( ent ) then
-            local r, g, b = render.GetColorModulation()
-            render.SetColorModulation( self:GetColor() )
-                local alpha = render.GetBlend()
-                render.SetBlend( self:GetAlpha() )
+    do
 
-                local pos, ang = self:CalcPosition( ply )
-                ent:SetRenderOrigin( pos )
-                ent:SetRenderAngles( ang )
-                ent:DrawModel( flags )
+        local render = render
 
-                render.SetBlend( alpha )
-            render.SetColorModulation( r, g, b )
+        function meta:Draw( ply, flags )
+            local ent = self.Entity
+            if IsValid( ent ) then
+                local r, g, b = render.GetColorModulation()
+                render.SetColorModulation( self:GetColor() )
+                    local alpha = render.GetBlend()
+                    render.SetBlend( self:GetAlpha() )
+
+                    local pos, ang = self:CalcPosition( ply )
+                    ent:SetRenderOrigin( pos )
+                    ent:SetRenderAngles( ang )
+                    ent:DrawModel( flags )
+
+                    render.SetBlend( alpha )
+                render.SetColorModulation( r, g, b )
+            end
         end
+
     end
 
     do
@@ -223,30 +264,24 @@ do
             end
         end
 
-        function Register( name, model )
-            UnRegister( name )
+        do
+            local setmetatable = setmetatable
+            function Register( name, model )
+                UnRegister( name )
 
-            local ent = ents.CreateClientProp( model )
-            ent:SetNoDraw( true )
-            ent:SetupBones()
+                local hat = setmetatable({
+                    ['Color'] = Vector( 1, 1, 1 ),
+                    ['Model'] = Model( model ),
+                    ['Name'] = name,
+                    ['SteamIDs'] = {},
+                    ['Weapons'] = {},
+                    ['Players'] = {},
+                    ['Models'] = {},
+                }, meta)
 
-            local new = setmetatable({
-                ['Model'] = Model( model ),
-                ['Entity'] = ent,
-                ['Name'] = name,
-                ['SteamIDs'] = {},
-                ['Weapons'] = {},
-                ['Players'] = {},
-                ['Models'] = {},
-            }, meta)
-
-            hook.Add('Think', ent, function( self )
-                new:Think( self )
-            end)
-
-            new:SetColor( Color( 255, 255, 255 ) )
-            table.insert( hats, new )
-            return new
+                table.insert( hats, hat )
+                return hat
+            end
         end
 
         hook.Add('PostPlayerDraw', 'pHats - Render', function( ply, flags )
@@ -257,9 +292,9 @@ do
             end
         end)
 
-        hook.Add('PlayerPostThink', 'pHats - Think', function( ply )
+        hook.Add('Think', 'pHats - Think', function()
             for _, hat in ipairs( hats ) do
-                hat.Players[ ply ] = hat:CanWear( ply )
+                hat:Think()
             end
         end)
 
