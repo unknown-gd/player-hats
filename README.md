@@ -11,10 +11,11 @@ Simple hats addon...
 - hat:SetPos( `vector` pos ) - Hat Local Position
 
 ## Checkups
+- hat:AddActiveWeapon( `string` class ) - Weapon ClassName
 - hat:AddSteamID64( `string` sid64 ) - Player SteamID64
 - hat:AddHasWeapon( `string` class ) - Weapon ClassName
-- hat:AddSteamID( `string` sid ) - Player SteamID
 - hat:AddModel( `string` mdl ) - Path to player model
+- hat:AddSteamID( `string` sid ) - Player SteamID
 
 ## Example Hat (`config.lua`):
 ```lua

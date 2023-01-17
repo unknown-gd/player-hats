@@ -1,3 +1,4 @@
+local string_lower = string.lower
 local IsValid = IsValid
 local ipairs = ipairs
 local Vector = Vector
@@ -90,7 +91,17 @@ do
     end
 
     function meta:GetAttachment()
-        return self.AttachmentName or 'eyes'
+        return self.AttachmentName
+    end
+
+    -- Bone
+    function meta:SetBoneName( boneName )
+        self.BoneName = boneName
+        return self
+    end
+
+    function meta:GetBoneName()
+        return self.BoneName
     end
 
     -- Filters
@@ -107,12 +118,9 @@ do
         end
     end
 
-    do
-        local string_lower = string.lower
-        function meta:AddModel( mdl )
-            table.insert( self.Models, string_lower( mdl ) )
-            return self
-        end
+    function meta:AddModel( mdl )
+        table.insert( self.Models, string_lower( mdl ) )
+        return self
     end
 
     function meta:AddHasWeapon( class )
@@ -120,10 +128,15 @@ do
         return self
     end
 
+    function meta:AddActiveWeapon( class )
+        table.insert( self.ActiveWeapons, class )
+        return self
+    end
+
     function meta:CanWear( ply )
         if ply:Alive() then
             local hasSteamID = false
-            if table.IsEmpty( self.SteamIDs ) then
+            if ply:IsBot() or table.IsEmpty( self.SteamIDs ) then
                 hasSteamID = true
             else
                 local steamID = ply:SteamID()
@@ -148,19 +161,37 @@ do
                 end
             end
 
+            local activeWeapon, activeWeaponClass = ply:GetActiveWeapon(), nil
+            if IsValid( activeWeapon ) then
+                activeWeaponClass = activeWeapon:GetClass()
+            end
+
             local hasWeapon = false
             if table.IsEmpty( self.Weapons ) then
                 hasWeapon = true
             else
                 for _, class in ipairs( self.Weapons ) do
                     if ply:HasWeapon( class ) then
+                        if (class == activeWeaponClass) then continue end
                         hasWeapon = true
                         break
                     end
                 end
             end
 
-            return hasSteamID and hasModel and hasWeapon
+            local hasActiveWeapon = false
+            if (activeWeaponClass == nil) or table.IsEmpty( self.ActiveWeapons ) then
+                hasActiveWeapon = true
+            else
+                for _, class in ipairs( self.ActiveWeapons ) do
+                    if (class == activeWeaponClass) then
+                        hasActiveWeapon = true
+                        break
+                    end
+                end
+            end
+
+            return hasSteamID and hasModel and hasWeapon and hasActiveWeapon
         end
 
         return false
@@ -169,11 +200,30 @@ do
     do
         local LocalToWorld = LocalToWorld
         function meta:CalcPosition( ply )
-            local attachmentID = ply:LookupAttachment( self:GetAttachment() )
-            if (attachmentID > 0) then
-                local data = ply:GetAttachment( attachmentID )
-                if (data) then
-                    return LocalToWorld( self:GetPos(), self:GetAngles(), data.Pos, data.Ang )
+            local attachmentName = self:GetAttachment()
+            if (attachmentName) then
+                local attachmentID = ply:LookupAttachment( attachmentName )
+                if (attachmentID > 0) then
+                    local data = ply:GetAttachment( attachmentID )
+                    if (data) then
+                        return LocalToWorld( self:GetPos(), self:GetAngles(), data.Pos, data.Ang )
+                    end
+                end
+            end
+
+            local boneName = self:GetBoneName()
+            if (boneName) then
+                local boneIndex = ply:LookupBone( boneName )
+                if (boneIndex >= 0) then
+                    local bonePos, boneAng = ply:GetBonePosition( boneIndex )
+                    if (bonePos == ply:GetPos()) then
+                        local matrix = ply:GetBoneMatrix( boneIndex )
+                        if (matrix) then
+                            bonePos = matrix:GetTranslation()
+                        end
+                    end
+
+                    return LocalToWorld( self:GetPos(), self:GetAngles(), bonePos, boneAng )
                 end
             end
 
@@ -269,16 +319,20 @@ do
             function Register( name, model )
                 UnRegister( name )
 
-                local hat = setmetatable({
-                    ['Color'] = Vector( 1, 1, 1 ),
-                    ['Model'] = Model( model ),
-                    ['Name'] = name,
+                local new = {
+                    ['AttachmentName'] = 'eyes',
+                    ['ActiveWeapons'] = {},
                     ['SteamIDs'] = {},
                     ['Weapons'] = {},
                     ['Players'] = {},
-                    ['Models'] = {},
-                }, meta)
+                    ['Models'] = {}
+                }
 
+                new.Color = Vector( 1, 1, 1 )
+                new.Model = Model( model )
+                new.Name = name
+
+                local hat = setmetatable( new, meta )
                 table.insert( hats, hat )
                 return hat
             end
