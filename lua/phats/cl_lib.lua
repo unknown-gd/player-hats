@@ -74,7 +74,7 @@ do
     end
 
     -- Size
-    function meta:SetSize( size, delay )
+    function meta:SetSize( size )
         self.Size = size
         return self
     end
