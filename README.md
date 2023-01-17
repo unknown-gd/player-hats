@@ -2,19 +2,19 @@
 Simple hats addon...
 
 ## Properties
-- :SetAttachment( `string` attachmentName ) - Hat Attachment (`eyes`, `chest`, `lefthand`, `righthand`, `anim_attachment_RH`, `anim_attachment_LH`)
-- :SetAlpha( `number` alpha ) - Hat Transparency
-- :SetColor( `color` color ) - Hat Color
-- :SetSize( `number` size ) - Hat Size
-- :SetAngles( `angle` ang ) - Hat Angle
-- :SetModel( `string` mdl ) - Hat Model
-- :SetPos( `vector` pos ) - Hat Local Position
+- hat:SetAttachment( `string` attachmentName ) - Hat Attachment (`eyes`, `chest`, `lefthand`, `righthand`, `anim_attachment_RH`, `anim_attachment_LH`)
+- hat:SetAlpha( `number` alpha ) - Hat Transparency
+- hat:SetColor( `color` color ) - Hat Color
+- hat:SetSize( `number` size ) - Hat Size
+- hat:SetAngles( `angle` ang ) - Hat Angle
+- hat:SetModel( `string` mdl ) - Hat Model
+- hat:SetPos( `vector` pos ) - Hat Local Position
 
 ## Checkups
-- :AddSteamID64( `string` sid64 ) - Player SteamID64
-- :AddHasWeapon( `string` class ) - Weapon ClassName
-- :AddSteamID( `string` sid ) - Player SteamID
-- :AddModel( `string` mdl ) - Path to player model
+- hat:AddSteamID64( `string` sid64 ) - Player SteamID64
+- hat:AddHasWeapon( `string` class ) - Weapon ClassName
+- hat:AddSteamID( `string` sid ) - Player SteamID
+- hat:AddModel( `string` mdl ) - Path to player model
 
 ## Example Hat (`config.lua`):
 ```lua
