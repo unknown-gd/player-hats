@@ -3,6 +3,7 @@ Simple hats addon...
 
 ## Properties
 - hat:SetAttachment( `string` attachmentName ) - Hat Attachment (`eyes`, `chest`, `lefthand`, `righthand`, `anim_attachment_RH`, `anim_attachment_LH`)
+- hat:SetBoneName( `string` boneName ) - Bone name relative to which the hat will be rendered.
 - hat:SetAlpha( `number` alpha ) - Hat Transparency
 - hat:SetColor( `color` color ) - Hat Color
 - hat:SetSize( `number` size ) - Hat Size
