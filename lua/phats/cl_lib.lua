@@ -233,20 +233,23 @@ do
 
     -- Entity
     do
-        local ents_CreateClientProp = ents.CreateClientProp
+        local ents_CreateClientside = ents.CreateClientside
         function meta:GetEntity()
             local old = self.Entity
             if IsValid( old ) then
                 return old
             end
 
-            local new = ents_CreateClientProp( self:GetModel() )
-            if IsValid( new ) then
-                self.Entity = new
-                new:SetNoDraw( true )
-                new:SetupBones()
-                return new
-            end
+            local new = ents_CreateClientside( 'prop_phat' )
+            self.Entity = new
+
+            new:SetModel( self:GetModel() )
+            new:DrawShadow( false )
+            new:SetNoDraw( true )
+            new:SetupBones()
+            new:Spawn()
+
+            return new
         end
     end
 
