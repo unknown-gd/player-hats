@@ -9,6 +9,7 @@ Simple hats addon...
 - hat:SetAngles( `angle` ang ) - Hat Angle
 - hat:SetModel( `string` mdl ) - Hat Model
 - hat:SetPos( `vector` pos ) - Hat Local Position
+- hat:SetUsePlayerColor( `boolean` bool ) - Hat will use the player's color
 
 ## Checkups
 - hat:AddActiveWeapon( `string` class ) - Weapon ClassName

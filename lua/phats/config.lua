@@ -10,5 +10,6 @@ do
     hat:AddModel( 'models/player/Group03/female_02.mdl' )
     hat:AddSteamID( 'STEAM_0:1:70096775' )
     hat:SetPos( Vector( -3, 0, -3 ) )
+    hat:SetUsePlayerColor( true )
 
 end

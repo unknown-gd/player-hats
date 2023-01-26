@@ -63,15 +63,25 @@ do
         return self.Alpha or 1
     end
 
-    -- Color
-    function meta:SetColor( color )
-        self:SetAlpha( color['a'] / 255 )
-        self.Color = color:ToVector()
-        return self
+    -- Use player color
+    function meta:GetUsePlayerColor()
+        return self.UsePlayerColor
     end
 
+    function meta:SetUsePlayerColor( bool )
+        self.UsePlayerColor = bool == true
+    end
+
+    -- Color
     function meta:GetColor()
         return self.Color[1], self.Color[2], self.Color[3]
+    end
+
+    function meta:SetColor( color )
+        self:SetAlpha( color['a'] / 255 )
+        self:SetUsePlayerColor( false )
+        self.Color = color:ToVector()
+        return self
     end
 
     -- Size
@@ -286,7 +296,13 @@ do
             local ent = self.Entity
             if IsValid( ent ) then
                 local r, g, b = render.GetColorModulation()
-                render.SetColorModulation( self:GetColor() )
+                    if self:GetUsePlayerColor() then
+                        local color = ply:GetPlayerColor()
+                        render.SetColorModulation( color[1], color[2], color[3] )
+                    else
+                        render.SetColorModulation( self:GetColor() )
+                    end
+
                     local alpha = render.GetBlend()
                     render.SetBlend( self:GetAlpha() )
 
@@ -324,6 +340,7 @@ do
 
                 local new = {
                     ['AttachmentName'] = 'eyes',
+                    ['UsePlayerColor'] = false,
                     ['ActiveWeapons'] = {},
                     ['SteamIDs'] = {},
                     ['Weapons'] = {},
