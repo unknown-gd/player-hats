@@ -375,3 +375,5 @@ do
     end
 
 end
+
+hook.Run( 'pHats - Initialized' )
