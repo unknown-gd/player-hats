@@ -202,9 +202,9 @@ class PlayerHat
         :submaterials = data
         if istable( submaterials )
             tbl = {}
-            for index, material in pairs( submaterials )
-                if isnumber( index ) and isstring( material )
-                    tbl[ index ] = material
+            for index, mat in pairs( submaterials )
+                if isnumber( index ) and isstring( mat )
+                    tbl[ index ] = mat
 
             @submaterials = tbl
         else
