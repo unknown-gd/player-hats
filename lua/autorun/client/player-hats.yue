@@ -1,6 +1,7 @@
 import isstring, isnumber, istable, isvector, isangle, LocalToWorld, vector_origin, angle_zero, pairs from _G
 import PrecacheModel from util
 import Iterator from player
+import Add from hook
 
 ENTITY = FindMetaTable( "Entity" )
 import IsValid from ENTITY
@@ -24,7 +25,7 @@ do
     }, "prop_player_hat" )
 
 import GetModel, GetClass, GetBonePosition, GetBoneMatrix, LookupBone, LookupAttachment, GetAttachment, GetNW2Var, GetNWBool from ENTITY
-import Nick, SteamID64, SteamID, HasWeapon, GetActiveWeapon, IsBot from FindMetaTable( "Player" )
+import Nick, SteamID64, SteamID, HasWeapon, GetActiveWeapon, IsBot, Alive from FindMetaTable( "Player" )
 import GetTranslation, GetAngles from FindMetaTable( "VMatrix" )
 import CreateClientside from ents
 import find from string
@@ -99,6 +100,9 @@ class PlayerHat
         return LocalToWorld( @offset, @angles, GetBonePosition( entity, 0 ) )
 
     CreateEntity: ( parent ) =>
+        unless parent\IsPlayer!
+            return
+
         entity = parent[ @full_name ]
         unless entity and IsValid( entity )
             entity = CreateClientside( "prop_player_hat" )
@@ -112,6 +116,10 @@ class PlayerHat
             entity\Spawn!
 
             entity.PlayerColorAllowed = @allow_player_color
+
+            if @allow_player_color and entity.SetPlayerColor
+                entity\SetPlayerColor( parent\GetPlayerColor! )
+
             entity\SetMaterial( @material )
             entity.DataObject = @
 
@@ -251,6 +259,9 @@ refreshPlayer = ( ply ) ->
 
 net.Receive "Player Hats - Sync", ->
     for index = 1, length
+        for _, ply in Iterator!
+            objects[ index ]\RemoveEntity( ply )
+
         objects[ index ] = nil
 
     length = 0
@@ -265,14 +276,14 @@ net.Receive "Player Hats - Sync", ->
         refreshPlayer( ply )
 
     print "[PlayerHats] Received " .. length .. " hats."
-    returnw
+    return
 
 do
 
     import DrawModel, SetRenderOrigin, SetRenderAngles from ENTITY
     import SetColorModulation, SetBlend from render
 
-    hook.Add "PostPlayerDraw", "PlayerHats - Draw", ( ply, flags ) ->
+    Add "PostPlayerDraw", "PlayerHats - Draw", ( ply, flags ) ->
         for index = 1, length
             dataObject = objects[ index ]
             entity = ply[ dataObject.full_name ]
@@ -284,8 +295,36 @@ do
                 SetBlend( dataObject.alpha )
                 DrawModel( entity, flags )
 
-        SetBlend( 1 )
         SetColorModulation( 1, 1, 1 )
+        SetBlend( 1 )
+        return
+
+    Add "PostDrawTranslucentRenderables", "PlayerHats - Ragdolls", ( isDepth, isSkybox ) ->
+        if isSkybox
+            return
+
+        for _, ply in Iterator!
+            if Alive( ply )
+                continue
+
+            ragdoll = ply\GetRagdollEntity!
+            unless ragdoll and IsValid( ragdoll )
+                continue
+
+            for index = 1, length
+                dataObject = objects[ index ]
+                entity = ply[ dataObject.full_name ]
+                if entity and IsValid( entity )
+                    SetColorModulation( dataObject.red, dataObject.green, dataObject.blue )
+                    origin, angles = dataObject\GetRenderPosition( ragdoll )
+                    SetRenderOrigin( entity, origin )
+                    SetRenderAngles( entity, angles )
+                    SetBlend( dataObject.alpha )
+                    DrawModel( entity, flags )
+
+        SetColorModulation( 1, 1, 1 )
+        SetBlend( 1 )
+        return
 
 timer.Create "PlayerHats - Update", 0.5, 0, ->
     for _, ply in Iterator!
@@ -295,14 +334,14 @@ do
 
     import Simple from timer
 
-    hook.Add "PlayerSwitchWeapon", "PlayerHats - Weapon Switch", ( ply, _, weapon ) ->
+    Add "PlayerSwitchWeapon", "PlayerHats - Weapon Switch", ( ply ) ->
         Simple 0, ->
             if IsValid( ply )
                 refreshPlayer( ply )
 
             return
 
-hook.Add "NotifyShouldTransmit", "Player Hats - PVS", ( entity, shouldtransmit ) ->
+Add "NotifyShouldTransmit", "Player Hats - PVS", ( entity, shouldtransmit ) ->
     unless entity\IsPlayer!
         return
 
@@ -313,7 +352,7 @@ hook.Add "NotifyShouldTransmit", "Player Hats - PVS", ( entity, shouldtransmit )
     deInitializePlayer( entity )
     return
 
-hook.Add "EntityRemoved", "Player Hats - Entity Removed", ( entity ) ->
+Add "EntityRemoved", "Player Hats - Entity Removed", ( entity ) ->
     unless entity\IsPlayer!
         return
 
