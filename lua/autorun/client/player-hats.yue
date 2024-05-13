@@ -1,0 +1,321 @@
+import isstring, isnumber, istable, isvector, isangle, LocalToWorld, vector_origin, angle_zero, pairs from _G
+import PrecacheModel from util
+import Iterator from player
+
+ENTITY = FindMetaTable( "Entity" )
+import IsValid from ENTITY
+
+do
+
+    import GetParent from ENTITY
+
+    defaultColor = Vector( 1, 1, 1 )
+
+    scripted_ents.Register( {
+        Type: "anim"
+        GetPlayerColor: ( entity ) ->
+            if entity.PlayerColorAllowed
+                parent = GetParent( entity )
+                if IsValid( parent )
+                    return parent\GetPlayerColor!
+
+            return defaultColor
+
+    }, "prop_player_hat" )
+
+import GetModel, GetClass, GetBonePosition, GetBoneMatrix, LookupBone, LookupAttachment, GetAttachment, GetNW2Var, GetNWBool from ENTITY
+import Nick, SteamID64, SteamID, HasWeapon, GetActiveWeapon, IsBot from FindMetaTable( "Player" )
+import GetTranslation, GetAngles from FindMetaTable( "VMatrix" )
+import CreateClientside from ents
+import find from string
+
+class PlayerHat
+    __tostring: =>
+        return string.format( "Player Hat: %p [%s]", @, @model )
+
+    -- Filters
+    Conditions: {
+        "activeweapon": ( ply, className ) ->
+            weapon = GetActiveWeapon( ply )
+            if IsValid( weapon )
+                return GetClass( weapon ) == className
+
+            return false
+
+        "hasweapon": ( ply, className ) ->
+            return HasWeapon( ply, className )
+
+        "model": ( ply, modelName ) ->
+            return GetModel( ply ) == modelName
+
+        "steamid64": ( ply, sid64 ) ->
+            return not IsBot( ply ) and SteamID64( ply ) == sid64
+
+        "nickname": ( ply, str ) ->
+            return find( Nick( ply ), str, 1, false ) ~= nil
+
+        "steamid": ( ply, sid ) ->
+            return not IsBot( ply ) and SteamID( ply ) == sid
+
+        "nw2": ( ply, name ) ->
+            return GetNW2Var( ply, name )
+
+        "nw": ( ply, name ) ->
+            return GetNWBool( ply, name )
+
+        "playercolor": ( ply, color ) ->
+            return ply\GetPlayerColor! == color
+
+        "weaponcolor": ( ply, color ) ->
+            return ply\GetWeaponColor! == color
+
+    }
+
+    CheckConditions: ( entity ) =>
+        conditions = @Conditions
+        for data in *@conditions
+            func = conditions[ data[ 1 ] ]
+            if func and not func( entity, data[ 2 ] )
+                return false
+
+        return true
+
+    GetRenderPosition: ( entity ) =>
+        attachmentName = @attachment
+        if attachmentName
+            attachmentID = LookupAttachment( entity, attachmentName )
+            if attachmentID and attachmentID > 0
+                attachment = GetAttachment( entity, attachmentID )
+                return LocalToWorld( @offset, @angles, attachment.Pos, attachment.Ang )
+
+        boneName = @bone
+        if boneName
+            boneID = LookupBone( entity, boneName )
+            if boneID and boneID >= 0
+                matrix = GetBoneMatrix( entity, boneID )
+                if matrix
+                    return LocalToWorld( @offset, @angles, GetTranslation( matrix ), GetAngles( matrix ) )
+
+        return LocalToWorld( @offset, @angles, GetBonePosition( entity, 0 ) )
+
+    CreateEntity: ( parent ) =>
+        entity = parent[ @full_name ]
+        unless entity and IsValid( entity )
+            entity = CreateClientside( "prop_player_hat" )
+            parent[ @full_name ] = entity
+
+            entity\SetPos( parent\WorldSpaceCenter! )
+            entity\SetParent( parent )
+            entity\SetModel( @model )
+            entity\SetNoDraw( true )
+            entity\SetupBones!
+            entity\Spawn!
+
+            entity.PlayerColorAllowed = @allow_player_color
+            entity\SetMaterial( @material )
+            entity.DataObject = @
+
+            for index, material in pairs( @submaterials )
+                entity\SetSubMaterial( index, material )
+
+            entity\DrawShadow( @allow_shadow )
+            entity\SetModelScale( @scale, 0 )
+            entity\AddEffects( @effects )
+
+        return entity
+
+    RemoveEntity: ( parent ) =>
+        entity = parent[ @full_name ]
+        if entity
+            if IsValid( entity )
+                entity\Remove!
+
+            parent[ @full_name ] = nil
+
+    new: ( data ) =>
+        :name = data
+        unless isstring( name )
+            print "[PlayerHats] Invalid hat name: #{name}"
+            return
+
+        @full_name = "player-hats::" .. name
+        @name = name
+
+        :model = data
+        unless isstring( model )
+            print "[PlayerHats] Invalid hat model: #{model}"
+            return
+
+        PrecacheModel( model )
+        @model = model
+
+        :offset = data
+        if isvector( offset )
+            @offset = offset
+        else
+            @offset = vector_origin
+
+        :angles = data
+        if isangle( angles )
+            @angles = angles
+        else
+            @angles = angle_zero
+
+        :bone = data
+        if isstring( bone )
+            @bone = bone
+        else
+            @bone = nil
+
+        :attachment = data
+        if isstring( attachment )
+            @attachment = attachment
+        else
+            @attachment = nil
+
+        :conditions = data
+        if istable( conditions )
+            @conditions = conditions
+        else
+            @conditions = {}
+
+        :effects = data
+        if isnumber( effects )
+            @effects = effects
+        else
+            @effects = 0
+
+        :material = data
+        if isstring( material )
+            @material = material
+        else
+            @material = ""
+
+        :submaterials = data
+        if istable( submaterials )
+            tbl = {}
+            for index, material in pairs( submaterials )
+                if isnumber( index ) and isstring( material )
+                    tbl[ index ] = material
+
+            @submaterials = tbl
+        else
+            @submaterials = {}
+
+        :scale = data
+        if isnumber( scale )
+            @scale = scale
+        else
+            @scale = 1
+
+        @allow_player_color = data.allow_player_color == true
+        @allow_shadow = data.allow_shadow == true
+
+        :color = data
+        if color
+            @red = color.r / 255
+            @green = color.g / 255
+            @blue = color.b / 255
+        else
+            @red = 1
+            @green = 1
+            @blue = 1
+
+        :alpha = data
+        if isnumber( alpha )
+            @alpha = alpha
+        else
+            @alpha = 1
+
+        @initialized = true
+
+objects, length = {}, 0
+
+initializePlayer = ( ply ) ->
+    for index = 1, length
+        dataObject = objects[ index ]
+        if dataObject\CheckConditions( ply )
+            dataObject\CreateEntity( ply )
+
+deInitializePlayer = ( ply ) ->
+    for index = 1, length
+        objects[ index ]\RemoveEntity( ply )
+
+refreshPlayer = ( ply ) ->
+    for index = 1, length
+        dataObject = objects[ index ]
+        if dataObject\CheckConditions( ply )
+            dataObject\CreateEntity( ply )
+        else
+            dataObject\RemoveEntity( ply )
+
+net.Receive "Player Hats - Sync", ->
+    for index = 1, length
+        objects[ index ] = nil
+
+    length = 0
+
+    for data in *net.ReadTable( true )
+        dataObject = PlayerHat( data )
+        if dataObject.initialized
+            length += 1
+            objects[ length ] = dataObject
+
+    for _, ply in Iterator!
+        refreshPlayer( ply )
+
+    print "[PlayerHats] Received " .. length .. " hats."
+    returnw
+
+do
+
+    import DrawModel, SetRenderOrigin, SetRenderAngles from ENTITY
+    import SetColorModulation, SetBlend from render
+
+    hook.Add "PostPlayerDraw", "PlayerHats - Draw", ( ply, flags ) ->
+        for index = 1, length
+            dataObject = objects[ index ]
+            entity = ply[ dataObject.full_name ]
+            if entity and IsValid( entity )
+                SetColorModulation( dataObject.red, dataObject.green, dataObject.blue )
+                origin, angles = dataObject\GetRenderPosition( ply )
+                SetRenderOrigin( entity, origin )
+                SetRenderAngles( entity, angles )
+                SetBlend( dataObject.alpha )
+                DrawModel( entity, flags )
+
+        SetBlend( 1 )
+        SetColorModulation( 1, 1, 1 )
+
+timer.Create "PlayerHats - Update", 0.5, 0, ->
+    for _, ply in Iterator!
+        refreshPlayer( ply )
+
+do
+
+    import Simple from timer
+
+    hook.Add "PlayerSwitchWeapon", "PlayerHats - Weapon Switch", ( ply, _, weapon ) ->
+        Simple 0, ->
+            if IsValid( ply )
+                refreshPlayer( ply )
+
+            return
+
+hook.Add "NotifyShouldTransmit", "Player Hats - PVS", ( entity, shouldtransmit ) ->
+    unless entity\IsPlayer!
+        return
+
+    if shouldtransmit
+        initializePlayer( entity )
+        return
+
+    deInitializePlayer( entity )
+    return
+
+hook.Add "EntityRemoved", "Player Hats - Entity Removed", ( entity ) ->
+    unless entity\IsPlayer!
+        return
+
+    deInitializePlayer( entity )
+    return
