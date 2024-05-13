@@ -61,13 +61,24 @@ loadHats = ->
         if color
             hatData.color = Color( color.red or color.r or 255, color.green or color.g or 255, color.blue or color.b or 255 )
 
+        :skin = data
+        if isnumber( skin )
+            if skin < 0
+                skin = 0
+
+            hatData.skin = skin
+
+        :bodygroups = data
+        if isstring( bodygroups )
+            hatData.bodygroups = bodygroups
+
         :alpha = data
         if isnumber( alpha )
             hatData.alpha = Clamp( alpha, 0, 1 )
 
         :scale = data
         if isnumber( scale )
-            hatData.scale = Clamp( scale, 0, 1 )
+            hatData.scale = Clamp( scale, 0, 128 )
 
         :effects = data
         if isnumber( effects )

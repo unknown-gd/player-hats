@@ -73,13 +73,20 @@ class PlayerHat
     }
 
     CheckConditions: ( entity ) =>
-        conditions = @Conditions
+        funcs = @Conditions
+        local lastName
+        success = true
+
         for data in *@conditions
-            func = conditions[ data[ 1 ] ]
-            if func and not func( entity, data[ 2 ] )
+            name = data[ 1 ]
+            if not success and name ~= lastName
                 return false
 
-        return true
+            func = funcs[ name ]
+            if func
+                success, lastName = func( entity, data[ 2 ] ), name
+
+        return success
 
     GetRenderPosition: ( entity ) =>
         attachmentName = @attachment
@@ -120,7 +127,9 @@ class PlayerHat
             if @allow_player_color and entity.SetPlayerColor
                 entity\SetPlayerColor( parent\GetPlayerColor! )
 
+            entity\SetBodyGroups( @bodygroups )
             entity\SetMaterial( @material )
+            entity\SetSkin( @skin )
             entity.DataObject = @
 
             for index, material in pairs( @submaterials )
@@ -209,6 +218,18 @@ class PlayerHat
             @submaterials = tbl
         else
             @submaterials = {}
+
+        :skin = data
+        if isnumber( skin )
+            @skin = skin
+        else
+            @skin = 0
+
+        :bodygroups = data
+        if isstring( bodygroups )
+            @bodygroups = bodygroups
+        else
+            @bodygroups = ""
 
         :scale = data
         if isnumber( scale )
