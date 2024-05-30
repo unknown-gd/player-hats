@@ -36,12 +36,8 @@ loadHats = ->
     table.Empty( hats )
     length = 0
 
-    for name, data in pairs( json )
-        unless isstring( name )
-            print "[PlayerHats] Invalid hat name: #{name}"
-            continue
-
-        hatData = { :name }
+    for _, data in pairs( json )
+        hatData = {}
 
         unless isstring( data.model )
             print "[PlayerHats] Invalid hat model: #{data.model}"
@@ -133,6 +129,7 @@ loadHats = ->
         hats[ length ] = hatData
 
     print "[PlayerHats] Loaded " .. length .. " hats."
+    return
 
 util.AddNetworkString "Player Hats - Sync"
 players = {}
@@ -145,7 +142,6 @@ sendHats = ( ply ) ->
     net.WriteTable( hats, true )
     net.Send( ply )
     return
-
 
 hook.Add "SetupMove", "PlayerHats - SetupMove", ( ply, _, cmd ) ->
     if players[ ply ] or not ( cmd\IsForced! or ply\IsBot! )
@@ -167,6 +163,7 @@ concommand.Add "player_hats_reload", ( ply ) ->
 
     loadHats!
     broadcastHats!
+    ply\ChatPrint "Hats reloaded."
     return
 
 timer.Simple 0.5, ->

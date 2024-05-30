@@ -30,6 +30,8 @@ import GetTranslation, GetAngles from FindMetaTable( "VMatrix" )
 import CreateClientside from ents
 import find from string
 
+lastIndex = 0
+
 class PlayerHat
     __tostring: =>
         return string.format( "Player Hat: %p [%s]", @, @model )
@@ -58,11 +60,11 @@ class PlayerHat
         "steamid": ( ply, sid ) ->
             return not IsBot( ply ) and SteamID( ply ) == sid
 
-        "nw2": ( ply, name ) ->
-            return GetNW2Var( ply, name )
+        "nw2": ( ply, value ) ->
+            return GetNW2Var( ply, value )
 
-        "nw": ( ply, name ) ->
-            return GetNWBool( ply, name )
+        "nw": ( ply, value ) ->
+            return GetNWBool( ply, value )
 
         "playercolor": ( ply, color ) ->
             return ply\GetPlayerColor! == color
@@ -74,17 +76,18 @@ class PlayerHat
 
     CheckConditions: ( entity ) =>
         funcs = @Conditions
-        local lastName
+        local lastConditionName
         success = true
 
         for data in *@conditions
-            name = data[ 1 ]
-            if not success and name ~= lastName
-                return false
+            conditionName = data[ 1 ]
+            if conditionName ~= lastConditionName
+                return success
 
-            func = funcs[ name ]
+            func = funcs[ conditionName ]
             if func
-                success, lastName = func( entity, data[ 2 ] ), name
+                success = func( entity, data[ 2 ] )
+                lastConditionName = conditionName
 
         return success
 
@@ -150,13 +153,9 @@ class PlayerHat
             parent[ @full_name ] = nil
 
     new: ( data ) =>
-        :name = data
-        unless isstring( name )
-            print "[PlayerHats] Invalid hat name: #{name}"
-            return
-
-        @full_name = "player-hats::" .. name
-        @name = name
+        lastIndex += 1
+        @index = lastIndex
+        @full_name = "player-hats::" .. lastIndex
 
         :model = data
         unless isstring( model )
@@ -257,6 +256,7 @@ class PlayerHat
             @alpha = 1
 
         @initialized = true
+        return
 
 objects, length = {}, 0
 
