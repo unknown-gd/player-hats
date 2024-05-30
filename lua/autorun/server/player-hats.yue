@@ -19,7 +19,7 @@ unless file.Exists( "player-hats.json", "DATA" )
         }
     }, true ) )
 
-import isstring, isnumber, istable, Vector, Color, Angle, pairs from _G
+import isstring, isnumber, istable, Vector, Color, Angle, pairs, type from _G
 import Clamp, floor from math
 
 hats, length = {}, 0
@@ -82,26 +82,40 @@ loadHats = ->
 
         :conditions = data
         if istable( conditions )
-            lst, len = {}, 0
+            result = {}
             for name, value in pairs( conditions )
                 unless isstring( name )
                     continue
 
-                if istable( value )
-                    for val in *value
-                        unless isstring( value )
-                            continue
+                switch type( value )
+                    when "table"
+                        lst = result[ name ]
+                        unless istable( lst )
+                            lst = result[ name ] = { lst }
 
-                        len += 1
-                        lst[ len ] = { name, val }
+                        for val in *value
+                            if isstring( val )
+                                lst[] = val
 
-                elseif isstring( value )
-                    len += 1
+                    when "string"
+                        lst = result[ name ]
+                        if lst and not istable( lst )
+                            lst = result[ name ] = { lst }
 
-                    if name == "playercolor" or name == "weaponcolor"
-                        lst[ len ] = { name, Vector( value ) }
-                    else
-                        lst[ len ] = { name, value }
+                        if name == "playercolor" or name == "weaponcolor"
+                            if lst
+                                lst[] = Vector( value )
+                            else
+                                result[ name ] = Vector( value )
+                        elseif lst
+                            lst[] = value
+                        else
+                            result[ name ] = value
+
+            lst, len = {}, 0
+            for name, value in pairs( result )
+                len += 1
+                lst[ len ] = { name, value }
 
             hatData.conditions = lst
 

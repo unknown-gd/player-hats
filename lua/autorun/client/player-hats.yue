@@ -48,7 +48,7 @@ class PlayerHat
         "hasweapon": ( ply, className ) ->
             return HasWeapon( ply, className )
 
-        "model": ( ply, modelName ) ->
+        "playermodel": ( ply, modelName ) ->
             return GetModel( ply ) == modelName
 
         "steamid64": ( ply, sid64 ) ->
@@ -76,20 +76,24 @@ class PlayerHat
 
     CheckConditions: ( entity ) =>
         funcs = @Conditions
-        local lastConditionName
-        success = true
-
         for data in *@conditions
-            conditionName = data[ 1 ]
-            if conditionName ~= lastConditionName
-                return success
-
-            func = funcs[ conditionName ]
+            func = funcs[ data[ 1 ] ]
             if func
-                success = func( entity, data[ 2 ] )
-                lastConditionName = conditionName
+                value = data[ 2 ]
+                if istable( value )
+                    success = false
+                    for val in *value
+                        if func( entity, val )
+                            success = true
+                            break
 
-        return success
+                    unless success
+                        return false
+
+                elseif not func( entity, value )
+                    return false
+
+        return true
 
     GetRenderPosition: ( entity ) =>
         attachmentName = @attachment
