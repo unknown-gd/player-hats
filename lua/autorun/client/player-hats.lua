@@ -1,424 +1,495 @@
-local isstring, isnumber, istable, isvector, isangle, LocalToWorld, vector_origin, angle_zero, pairs = _G.isstring, _G.isnumber, _G.istable, _G.isvector, _G.isangle, _G.LocalToWorld, _G.vector_origin, _G.angle_zero, _G.pairs
-local PrecacheModel = util.PrecacheModel
-local Iterator = player.Iterator
-local Add = hook.Add
-local ENTITY = FindMetaTable("Entity")
-local IsValid = ENTITY.IsValid
+local _G = _G
+
+local isstring, isnumber, istable, isvector, isangle = _G.isstring, _G.isnumber, _G.istable, _G.isvector, _G.isangle
+local player_Iterator = _G.player.Iterator
+local hook_Add = _G.hook.Add
+
+-- ULib support ( I really don't like this )
+if ( CLIENT or SERVER ) and _G.file.Exists( "ulib/shared/hook.lua", "LUA" ) then
+	_G.include( "ulib/shared/hook.lua" )
+end
+
+--- Srlion's Hook Library ( https://github.com/Srlion/Hook-Library )
+---@diagnostic disable-next-line: undefined-field
+local PRE_HOOK = _G.PRE_HOOK or -2
+
+local PLAYER = _G.FindMetaTable( "Player" ) ---@cast PLAYER Player
+local ENTITY = _G.FindMetaTable( "Entity" ) ---@cast ENTITY Entity
+local ENTITY_IsValid = ENTITY.IsValid
+
 do
-	local GetParent = ENTITY.GetParent
-	local defaultColor = Vector(1, 1, 1)
-	scripted_ents.Register({
+
+	local ENTITY_GetParent = ENTITY.GetParent
+	local default_color = _G.Vector( 1, 1, 1 )
+
+	_G.scripted_ents.Register( {
 		Type = "anim",
-		GetPlayerColor = function(entity)
+		GetPlayerColor = function( entity )
 			if entity.PlayerColorAllowed then
-				local parent = GetParent(entity)
-				if IsValid(parent) then
+				local parent = ENTITY_GetParent( entity ) ---@cast parent Player
+				if ENTITY_IsValid( parent ) then
 					return parent:GetPlayerColor()
 				end
 			end
-			return defaultColor
+
+			return default_color
 		end
-	}, "prop_player_hat")
+	}, "prop_player_hat" )
+
 end
-local GetModel, GetClass, GetBonePosition, GetBoneMatrix, LookupBone, LookupAttachment, GetAttachment, GetNW2Var, GetNWBool = ENTITY.GetModel, ENTITY.GetClass, ENTITY.GetBonePosition, ENTITY.GetBoneMatrix, ENTITY.LookupBone, ENTITY.LookupAttachment, ENTITY.GetAttachment, ENTITY.GetNW2Var, ENTITY.GetNWBool
-local Nick, SteamID64, SteamID, HasWeapon, GetActiveWeapon, IsBot, Alive
-do
-	local _obj_0 = FindMetaTable("Player")
-	Nick, SteamID64, SteamID, HasWeapon, GetActiveWeapon, IsBot, Alive = _obj_0.Nick, _obj_0.SteamID64, _obj_0.SteamID, _obj_0.HasWeapon, _obj_0.GetActiveWeapon, _obj_0.IsBot, _obj_0.Alive
+
+local objects, length = {}, 0
+
+local function initializePlayer( ply )
+	for index = 1, length, 1 do
+		local object = objects[ index ]
+		if object:CheckConditions( ply ) then
+			object:CreateEntity( ply )
+		end
+	end
 end
-local GetTranslation, GetAngles
-do
-	local _obj_0 = FindMetaTable("VMatrix")
-	GetTranslation, GetAngles = _obj_0.GetTranslation, _obj_0.GetAngles
+
+local function deInitializePlayer( ply )
+	for index = 1, length, 1 do
+		objects[ index ]:RemoveEntity( ply )
+	end
 end
-local CreateClientside = ents.CreateClientside
-local find = string.find
-local lastIndex = 0
-local PlayerHat
+
+local function refreshPlayer( ply )
+	for index = 1, length, 1 do
+		local object = objects[ index ]
+		if object:CheckConditions( ply ) then
+			object:CreateEntity( ply )
+		else
+			object:RemoveEntity( ply )
+		end
+	end
+end
+
 do
-	local _class_0
-	local _base_0 = {
-		__tostring = function(self)
-			return string.format("Player Hat: %p [%s]", self, self.model)
+
+	local pairs, ipairs = _G.pairs, _G.ipairs
+
+	local metatable = {
+		__tostring = function( self )
+			return _G.string.format( "Player Hat: %p [%s]", self, self.model )
 		end,
-		Conditions = {
-			["activeweapon"] = function(ply, className)
-				local weapon = GetActiveWeapon(ply)
-				if IsValid(weapon) then
-					return GetClass(weapon) == className
+		RemoveEntity = function( self, parent )
+			local entity = parent[ self.full_name ]
+			if entity then
+				if ENTITY_IsValid( entity ) then
+					entity:Remove()
 				end
-				return false
-			end,
-			["hasweapon"] = function(ply, className)
-				return HasWeapon(ply, className)
-			end,
-			["playermodel"] = function(ply, modelName)
-				return GetModel(ply) == modelName
-			end,
-			["steamid64"] = function(ply, sid64)
-				return not IsBot(ply) and SteamID64(ply) == sid64
-			end,
-			["nickname"] = function(ply, str)
-				return find(Nick(ply), str, 1, false) ~= nil
-			end,
-			["steamid"] = function(ply, sid)
-				return not IsBot(ply) and SteamID(ply) == sid
-			end,
-			["nw2"] = function(ply, value)
-				return GetNW2Var(ply, value)
-			end,
-			["nw"] = function(ply, value)
-				return GetNWBool(ply, value)
-			end,
-			["playercolor"] = function(ply, color)
-				return ply:GetPlayerColor() == color
-			end,
-			["weaponcolor"] = function(ply, color)
-				return ply:GetWeaponColor() == color
+
+				parent[ self.full_name ] = nil
 			end
-		},
-		CheckConditions = function(self, entity)
-			local funcs = self.Conditions
-			local _list_0 = self.conditions
-			for _index_0 = 1, #_list_0 do
-				local data = _list_0[_index_0]
-				local func = funcs[data[1]]
+		end
+	}
+
+	do
+
+		local ents_CreateClientside = ents.CreateClientside
+
+		function metatable:CreateEntity( parent )
+			if not parent:IsPlayer() then return end
+
+			local entity = parent[ self.full_name ]
+			if not ( entity and ENTITY_IsValid( entity ) ) then
+				entity = ents_CreateClientside( "prop_player_hat" )
+				parent[ self.full_name ] = entity
+
+				entity:SetPos( parent:WorldSpaceCenter() )
+				entity:SetParent( parent )
+				entity:SetModel( self.model )
+				entity:SetNoDraw( true )
+				entity:SetupBones()
+				entity:Spawn()
+
+				---@diagnostic disable-next-line: inject-field
+				entity.PlayerColorAllowed = self.allow_player_color
+
+				---@diagnostic disable-next-line: undefined-field
+				if self.allow_player_color and entity.SetPlayerColor then
+					---@diagnostic disable-next-line: undefined-field
+					entity:SetPlayerColor( parent:GetPlayerColor() )
+				end
+
+				entity:SetBodyGroups( self.bodygroups )
+				entity:SetMaterial( self.material )
+				entity:SetSkin( self.skin )
+
+				for index, material in pairs( self.submaterialsh )  do
+					entity:SetSubMaterial( index, material )
+				end
+
+				entity:DrawShadow( self.allow_shadow )
+				entity:SetModelScale( self.scale, 0 )
+				entity:AddEffects( self.effects )
+			end
+
+			return entity
+		end
+
+	end
+
+	do
+
+		local ENTITY_LookupAttachment, ENTITY_GetAttachment, ENTITY_GetBoneMatrix, ENTITY_GetBonePosition, ENTITY_LookupBone = ENTITY.LookupAttachment, ENTITY.GetAttachment, ENTITY.GetBoneMatrix, ENTITY.GetBonePosition, ENTITY.LookupBone
+		local LocalToWorld = _G.LocalToWorld
+
+		local VMatrix = _G.FindMetaTable( "VMatrix" )
+		local VMatrix_GetTranslation, VMatrix_GetAngles = VMatrix.GetTranslation, VMatrix.GetAngles
+
+		function metatable:GetRenderPosition( entity )
+			local attachment_name = self.attachment
+			if attachment_name then
+				local attachment_index = ENTITY_LookupAttachment( entity, attachment_name )
+				if attachment_index and attachment_index > 0 then
+					local attachment = ENTITY_GetAttachment( entity, attachment_index )
+					return LocalToWorld( self.offset, self.angles, attachment.Pos, attachment.Ang )
+				end
+			end
+
+			local bone_name = self.bone
+			if bone_name then
+				local bone_index = ENTITY_LookupBone( entity, bone_name )
+				if bone_index and bone_index >= 0 then
+					local matrix = ENTITY_GetBoneMatrix( entity, bone_index )
+					if matrix then
+						return LocalToWorld( self.offset, self.angles, VMatrix_GetTranslation( matrix ), VMatrix_GetAngles( matrix ) )
+					end
+				end
+			end
+
+			return LocalToWorld( self.offset, self.angles, ENTITY_GetBonePosition ( entity, 0 ) )
+		end
+
+	end
+
+	do
+
+		local PLAYER_Nick, PLAYER_SteamID64, PLAYER_SteamID, PLAYER_HasWeapon, PLAYER_GetActiveWeapon, PLAYER_IsBot = PLAYER.Nick, PLAYER.SteamID64, PLAYER.SteamID, PLAYER.HasWeapon, PLAYER.GetActiveWeapon, PLAYER.IsBot
+		local ENTITY_GetClass, ENTITY_GetModel, ENTITY_GetNW2Var, ENTITY_GetNWBool = ENTITY.GetClass, ENTITY.GetModel, ENTITY.GetNW2Var, ENTITY.GetNWBool
+		local string_find = _G.string.find
+
+		local conditions = {
+			activeweapon = function( ply, className )
+				local weapon = PLAYER_GetActiveWeapon( ply )
+				return ENTITY_IsValid( weapon ) and ENTITY_GetClass( weapon ) == className
+			end,
+			hasweapon = function( ply, className )
+				return PLAYER_HasWeapon( ply, className )
+			end,
+			playermodel = function( ply, modelName )
+				return ENTITY_GetModel( ply ) == modelName
+			end,
+			steamid64 = function( ply, sid64 )
+				return not PLAYER_IsBot( ply ) and PLAYER_SteamID64( ply ) == sid64
+			end,
+			nickname = function( ply, str )
+				return string_find( PLAYER_Nick( ply ), str, 1, false ) ~= nil
+			end,
+			steamid = function( ply, sid )
+				return not PLAYER_IsBot( ply ) and PLAYER_SteamID( ply ) == sid
+			end,
+			nw2 = function( ply, value )
+				return ENTITY_GetNW2Var( ply, value )
+			end,
+			nw = function( ply, value )
+				return ENTITY_GetNWBool( ply, value )
+			end,
+			playercolor = function( ply, color )
+				return ply:GetPlayerColor( ) == color
+			end,
+			weaponcolor = function( ply, color )
+				return ply:GetWeaponColor( ) == color
+			end
+		}
+
+		function metatable:CheckConditions( entity )
+			for _, data in ipairs( self.conditions ) do
+				local func = conditions[ data[ 1 ] ]
 				if func then
-					local value = data[2]
-					if istable(value) then
+					local value = data[ 2 ]
+					if istable( value ) then
 						local success = false
-						for _index_1 = 1, #value do
-							local val = value[_index_1]
-							if func(entity, val) then
+						for _, variable in ipairs( value ) do
+							if func( entity, variable ) then
 								success = true
 								break
 							end
 						end
+
 						if not success then
 							return false
 						end
-					elseif not func(entity, value) then
+					elseif not func( entity, value ) then
 						return false
 					end
 				end
 			end
+
 			return true
-		end,
-		GetRenderPosition = function(self, entity)
-			local attachmentName = self.attachment
-			if attachmentName then
-				local attachmentID = LookupAttachment(entity, attachmentName)
-				if attachmentID and attachmentID > 0 then
-					local attachment = GetAttachment(entity, attachmentID)
-					return LocalToWorld(self.offset, self.angles, attachment.Pos, attachment.Ang)
-				end
-			end
-			local boneName = self.bone
-			if boneName then
-				local boneID = LookupBone(entity, boneName)
-				if boneID and boneID >= 0 then
-					local matrix = GetBoneMatrix(entity, boneID)
-					if matrix then
-						return LocalToWorld(self.offset, self.angles, GetTranslation(matrix), GetAngles(matrix))
-					end
-				end
-			end
-			return LocalToWorld(self.offset, self.angles, GetBonePosition(entity, 0))
-		end,
-		CreateEntity = function(self, parent)
-			if not parent:IsPlayer() then
-				return
-			end
-			local entity = parent[self.full_name]
-			if not (entity and IsValid(entity)) then
-				entity = CreateClientside("prop_player_hat")
-				parent[self.full_name] = entity
-				entity:SetPos(parent:WorldSpaceCenter())
-				entity:SetParent(parent)
-				entity:SetModel(self.model)
-				entity:SetNoDraw(true)
-				entity:SetupBones()
-				entity:Spawn()
-				entity.PlayerColorAllowed = self.allow_player_color
-				if self.allow_player_color and entity.SetPlayerColor then
-					entity:SetPlayerColor(parent:GetPlayerColor())
-				end
-				entity:SetBodyGroups(self.bodygroups)
-				entity:SetMaterial(self.material)
-				entity:SetSkin(self.skin)
-				entity.DataObject = self
-				for index, material in pairs(self.submaterials) do
-					entity:SetSubMaterial(index, material)
-				end
-				entity:DrawShadow(self.allow_shadow)
-				entity:SetModelScale(self.scale, 0)
-				entity:AddEffects(self.effects)
-			end
-			return entity
-		end,
-		RemoveEntity = function(self, parent)
-			local entity = parent[self.full_name]
-			if entity then
-				if IsValid(entity) then
-					entity:Remove()
-				end
-				parent[self.full_name] = nil
-			end
 		end
-	}
-	if _base_0.__index == nil then
-		_base_0.__index = _base_0
+
 	end
-	_class_0 = setmetatable({
-		__init = function(self, data)
-			lastIndex = lastIndex + 1
-			self.index = lastIndex
-			self.full_name = "player-hats::" .. lastIndex
-			local model = data.model
-			if not isstring(model) then
-				print("[PlayerHats] Invalid hat model: " .. tostring(model))
-				return
-			end
-			PrecacheModel(model)
-			self.model = model
-			local offset = data.offset
-			if isvector(offset) then
-				self.offset = offset
-			else
-				self.offset = vector_origin
-			end
-			local angles = data.angles
-			if isangle(angles) then
-				self.angles = angles
-			else
-				self.angles = angle_zero
-			end
-			local bone = data.bone
-			if isstring(bone) then
-				self.bone = bone
-			else
-				self.bone = nil
-			end
-			local attachment = data.attachment
-			if isstring(attachment) then
-				self.attachment = attachment
-			else
-				self.attachment = nil
-			end
-			local conditions = data.conditions
-			if istable(conditions) then
-				self.conditions = conditions
-			else
-				self.conditions = { }
-			end
-			local effects = data.effects
-			if isnumber(effects) then
-				self.effects = effects
-			else
-				self.effects = 0
-			end
-			local material = data.material
-			if isstring(material) then
-				self.material = material
-			else
-				self.material = ""
-			end
-			local submaterials = data.submaterials
-			if istable(submaterials) then
-				local tbl = { }
-				for index, mat in pairs(submaterials) do
-					if isnumber(index) and isstring(mat) then
-						tbl[index] = mat
-					end
-				end
-				self.submaterials = tbl
-			else
-				self.submaterials = { }
-			end
-			local skin = data.skin
-			if isnumber(skin) then
-				self.skin = skin
-			else
-				self.skin = 0
-			end
-			local bodygroups = data.bodygroups
-			if isstring(bodygroups) then
-				self.bodygroups = bodygroups
-			else
-				self.bodygroups = ""
-			end
-			local scale = data.scale
-			if isnumber(scale) then
-				self.scale = scale
-			else
-				self.scale = 1
-			end
-			self.allow_player_color = data.allow_player_color == true
-			self.allow_shadow = data.allow_shadow == true
-			local color = data.color
-			if color then
-				self.red = color.r / 255
-				self.green = color.g / 255
-				self.blue = color.b / 255
-			else
-				self.red = 1
-				self.green = 1
-				self.blue = 1
-			end
-			local alpha = data.alpha
-			if isnumber(alpha) then
-				self.alpha = alpha
-			else
-				self.alpha = 1
-			end
-			self.initialized = true
+
+	metatable.__index = metatable
+
+	local util_PrecacheModel = util.PrecacheModel
+	local vector_origin = _G.vector_origin
+	local angle_zero = _G.angle_zero
+
+	local last_index = 0
+
+	local function new_hat( data )
+		last_index = last_index + 1
+
+		local object = {
+			index = last_index,
+			full_name = "player-hats::" .. last_index
+		}
+
+		setmetatable( object, metatable )
+
+		local model = data.model
+		if not isstring( model ) then
+			print( "[PlayerHats] Invalid hat model: " .. tostring( model ) )
 			return
-		end,
-		__base = _base_0,
-		__name = "PlayerHat"
-	}, {
-		__index = _base_0,
-		__call = function(cls, ...)
-			local _self_0 = setmetatable({ }, _base_0)
-			cls.__init(_self_0, ...)
-			return _self_0
 		end
-	})
-	_base_0.__class = _class_0
-	PlayerHat = _class_0
-end
-local objects, length = { }, 0
-local initializePlayer
-initializePlayer = function(ply)
-	for index = 1, length do
-		local dataObject = objects[index]
-		if dataObject:CheckConditions(ply) then
-			dataObject:CreateEntity(ply)
-		end
-	end
-end
-local deInitializePlayer
-deInitializePlayer = function(ply)
-	for index = 1, length do
-		objects[index]:RemoveEntity(ply)
-	end
-end
-local refreshPlayer
-refreshPlayer = function(ply)
-	for index = 1, length do
-		local dataObject = objects[index]
-		if dataObject:CheckConditions(ply) then
-			dataObject:CreateEntity(ply)
+
+		util_PrecacheModel( model )
+		object.model = model
+
+		local offset = data.offset
+		object.offset = isvector( offset ) and offset or vector_origin
+
+		local angles = data.angles
+		object.angles = isangle( angles ) and angles or angle_zero
+
+		local bone = data.bone
+		if isstring( bone ) then
+			object.bone = bone
 		else
-			dataObject:RemoveEntity(ply)
+			object.bone = nil
 		end
-	end
-end
-net.Receive("Player Hats - Sync", function()
-	for index = 1, length do
-		for _, ply in Iterator() do
-			objects[index]:RemoveEntity(ply)
+
+		local attachment = data.attachment
+		if isstring( attachment ) then
+			object.attachment = attachment
+		else
+			object.attachment = nil
 		end
-		objects[index] = nil
-	end
-	length = 0
-	local _list_0 = net.ReadTable(true)
-	for _index_0 = 1, #_list_0 do
-		local data = _list_0[_index_0]
-		local dataObject = PlayerHat(data)
-		if dataObject.initialized then
-			length = length + 1
-			objects[length] = dataObject
+
+		local conditions = data.conditions
+		if istable( conditions ) then
+			object.conditions = conditions
+		else
+			object.conditions = {}
 		end
-	end
-	for _, ply in Iterator() do
-		refreshPlayer(ply)
-	end
-	print("[PlayerHats] Received " .. length .. " hats.")
-	return
-end)
-do
-	local DrawModel, SetRenderOrigin, SetRenderAngles = ENTITY.DrawModel, ENTITY.SetRenderOrigin, ENTITY.SetRenderAngles
-	local SetColorModulation, SetBlend = render.SetColorModulation, render.SetBlend
-	Add("PostPlayerDraw", "PlayerHats - Draw", function(ply, flags)
-		for index = 1, length do
-			local dataObject = objects[index]
-			local entity = ply[dataObject.full_name]
-			if entity and IsValid(entity) then
-				SetColorModulation(dataObject.red, dataObject.green, dataObject.blue)
-				local origin, angles = dataObject:GetRenderPosition(ply)
-				SetRenderOrigin(entity, origin)
-				SetRenderAngles(entity, angles)
-				SetBlend(dataObject.alpha)
-				DrawModel(entity, flags)
-			end
+
+		local effects = data.effects
+		if isnumber( effects ) then
+			object.effects = effects
+		else
+			object.effects = 0
 		end
-		SetColorModulation(1, 1, 1)
-		SetBlend(1)
-		return
-	end)
-	Add("PostDrawTranslucentRenderables", "PlayerHats - Ragdolls", function(isDepth, isSkybox)
-		if isSkybox then
-			return
+
+		local material = data.material
+		if isstring( material ) then
+			object.material = material
+		else
+			object.material = ""
 		end
-		for _, ply in Iterator() do
-			if Alive(ply) then
-				goto _continue_0
-			end
-			local ragdoll = ply:GetRagdollEntity()
-			if not (ragdoll and IsValid(ragdoll)) then
-				goto _continue_0
-			end
-			for index = 1, length do
-				local dataObject = objects[index]
-				local entity = ply[dataObject.full_name]
-				if entity and IsValid(entity) then
-					SetColorModulation(dataObject.red, dataObject.green, dataObject.blue)
-					local origin, angles = dataObject:GetRenderPosition(ragdoll)
-					SetRenderOrigin(entity, origin)
-					SetRenderAngles(entity, angles)
-					SetBlend(dataObject.alpha)
-					DrawModel(entity, flags)
+
+		local submaterials = data.submaterials
+		if istable( submaterials ) then
+			local materials = {}
+			for index, material_path in pairs( submaterials ) do
+				if isnumber( index ) and isstring( material_path ) then
+					materials[ index ] = material_path
 				end
 			end
-			::_continue_0::
+
+			object.submaterials = materials
+		else
+			object.submaterials = {}
 		end
-		SetColorModulation(1, 1, 1)
-		SetBlend(1)
-		return
-	end)
-end
-timer.Create("PlayerHats - Update", 0.5, 0, function()
-	for _, ply in Iterator() do
-		refreshPlayer(ply)
+
+		local skin = data.skin
+		if isnumber( skin ) then
+			object.skin = skin
+		else
+			object.skin = 0
+		end
+
+		local bodygroups = data.bodygroups
+		if isstring( bodygroups ) then
+			object.bodygroups = bodygroups
+		else
+			object.bodygroups = ""
+		end
+
+		local scale = data.scale
+		if isnumber( scale ) then
+			object.scale = scale
+		else
+			object.scale = 1
+		end
+
+		object.allow_player_color = data.allow_player_color == true
+		object.allow_shadow = data.allow_shadow == true
+
+		local color = data.color
+		if color then
+			object.red = color.r / 255
+			object.green = color.g / 255
+			object.blue = color.b / 255
+		else
+			object.red = 1
+			object.green = 1
+			object.blue = 1
+		end
+
+		local alpha = data.alpha
+		if isnumber( alpha ) then
+			object.alpha = alpha
+		else
+			object.alpha = 1
+		end
+
+		return object
 	end
-end)
-do
-	local Simple = timer.Simple
-	Add("PlayerSwitchWeapon", "PlayerHats - Weapon Switch", function(ply)
-		return Simple(0, function()
-			if IsValid(ply) then
-				refreshPlayer(ply)
+
+	net.Receive( "Player Hats - Sync", function()
+		for index = 1, length, 1 do
+			for _, ply in player_Iterator() do
+				objects[ index ]:RemoveEntity( ply )
 			end
-			return
-		end)
-	end)
+
+			objects[ index ] = nil
+		end
+
+		length = 0
+
+		for _, data in ipairs( net.ReadTable( true ) ) do
+			local object = new_hat( data )
+			if object ~= nil then
+				length = length + 1
+				objects[ length ] = object
+			end
+		end
+
+		for _, ply in player_Iterator() do
+			refreshPlayer( ply )
+		end
+
+		print( "[PlayerHats] Received " .. length .. " hats." )
+	end )
+
 end
-Add("NotifyShouldTransmit", "Player Hats - PVS", function(entity, shouldtransmit)
-	if not entity:IsPlayer() then
-		return
+
+do
+
+	local ENTITY_DrawModel, ENTITY_SetRenderOrigin, ENTITY_SetRenderAngles = ENTITY.DrawModel, ENTITY.SetRenderOrigin, ENTITY.SetRenderAngles
+	local render_SetColorModulation, render_SetBlend = render.SetColorModulation, render.SetBlend
+
+	hook_Add( "PostPlayerDraw", "PlayerHats - Draw", function( ply, flags )
+		for index = 1, length do
+			local object = objects[ index ]
+
+			local entity = ply[ object.full_name ]
+			if entity and ENTITY_IsValid( entity ) then
+				render_SetColorModulation( object.red, object.green, object.blue )
+
+				local origin, angles = object:GetRenderPosition( ply )
+				ENTITY_SetRenderOrigin( entity, origin )
+				ENTITY_SetRenderAngles( entity, angles )
+				render_SetBlend( object.alpha )
+				ENTITY_DrawModel( entity, flags )
+			end
+		end
+
+		render_SetColorModulation( 1, 1, 1 )
+		render_SetBlend( 1 )
+
+		---@diagnostic disable-next-line: redundant-parameter
+	end, PRE_HOOK )
+
+	local PLAYER_Alive = PLAYER.Alive
+
+	hook_Add( "PostDrawTranslucentRenderables", "PlayerHats - Ragdolls", function( _, isSkybox )
+		if isSkybox then return end
+
+		for _, ply in player_Iterator() do
+			if not PLAYER_Alive( ply ) then
+				local ragdoll = ply:GetRagdollEntity()
+				if ragdoll and ENTITY_IsValid( ragdoll ) then
+					for index = 1, length do
+						local object = objects[ index ]
+
+						local entity = ply[ object.full_name ]
+						if entity and ENTITY_IsValid( entity ) then
+							render_SetColorModulation( object.red, object.green, object.blue )
+
+							local origin, angles = object:GetRenderPosition( ragdoll )
+							ENTITY_SetRenderOrigin( entity, origin )
+							ENTITY_SetRenderAngles( entity, angles )
+							render_SetBlend( object.alpha )
+
+							ENTITY_DrawModel( entity, 8 )
+						end
+					end
+				end
+			end
+		end
+
+		render_SetColorModulation( 1, 1, 1 )
+		render_SetBlend( 1 )
+
+		---@diagnostic disable-next-line: redundant-parameter
+	end, PRE_HOOK )
+
+end
+
+timer.Create( "PlayerHats - Update", 0.5, 0, function()
+	for _, ply in player_Iterator() do
+		refreshPlayer( ply )
 	end
-	if shouldtransmit then
-		initializePlayer(entity)
-		return
+end )
+
+do
+
+	local timer_Simple = timer.Simple
+
+	hook_Add( "PlayerSwitchWeapon", "PlayerHats - Weapon Switch", function( ply )
+		timer_Simple( 0, function()
+			if ENTITY_IsValid( ply ) then
+				refreshPlayer( ply )
+			end
+		end )
+
+		---@diagnostic disable-next-line: redundant-parameter
+	end, PRE_HOOK )
+
+end
+
+hook_Add( "NotifyShouldTransmit", "Player Hats - PVS", function( entity, shouldtransmit )
+	if entity:IsPlayer() then
+		if shouldtransmit then
+			initializePlayer( entity )
+		else
+			deInitializePlayer( entity )
+		end
 	end
-	deInitializePlayer(entity)
-	return
-end)
-return Add("EntityRemoved", "Player Hats - Entity Removed", function(entity)
-	if not entity:IsPlayer() then
-		return
+
+	---@diagnostic disable-next-line: redundant-parameter
+end, PRE_HOOK )
+
+hook_Add( "EntityRemoved", "Player Hats - Entity Removed", function( entity )
+	if entity:IsPlayer() then
+		deInitializePlayer( entity )
 	end
-	deInitializePlayer(entity)
-	return
-end)
+
+	---@diagnostic disable-next-line: redundant-parameter
+end, PRE_HOOK )
