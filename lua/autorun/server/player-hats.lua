@@ -146,6 +146,19 @@ local function loadHats()
 			object_data.material = material
 		end
 
+		local materials = data.materials
+		if istable( materials ) then
+			local result = {}
+			for i = 1, #materials, 1 do
+				local value = materials[ i ]
+				if isstring( value ) then
+					result[ i ] = value
+				end
+			end
+
+			object_data.materials = result
+		end
+
 		local attachment = data.attachment
 		if isstring( attachment ) then
 			object_data.attachment = attachment

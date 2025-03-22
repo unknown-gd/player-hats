@@ -118,7 +118,7 @@ do
 				entity:SetMaterial( self.material )
 				entity:SetSkin( self.skin )
 
-				for index, material in pairs( self.submaterialsh )  do
+				for index, material in pairs( self.materials ) do
 					entity:SetSubMaterial( index, material )
 				end
 
@@ -302,18 +302,19 @@ do
 			object.material = ""
 		end
 
-		local submaterials = data.submaterials
-		if istable( submaterials ) then
-			local materials = {}
-			for index, material_path in pairs( submaterials ) do
-				if isnumber( index ) and isstring( material_path ) then
-					materials[ index ] = material_path
+		local materials = data.materials
+		if istable( materials ) then
+			local result = {}
+			for i = 1, #materials, 1 do
+				local path = materials[ i ]
+				if isstring( path ) then
+					result[ i ] = path
 				end
 			end
 
-			object.submaterials = materials
+			object.materials = result
 		else
-			object.submaterials = {}
+			object.materials = {}
 		end
 
 		local skin = data.skin
